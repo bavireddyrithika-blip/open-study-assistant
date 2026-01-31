@@ -2,11 +2,12 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Open Study Assistant</title>
+  <title>Open Study Assistant — Safe AI</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@xenova/transformers/dist/transformers.min.js"></script>
   <style>
     body {
-      font-family: system-ui, -apple-system, sans-serif;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
       background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
       margin: 0;
       padding: 0;
@@ -19,6 +20,7 @@
       border-radius: 16px;
       box-shadow: 0 10px 30px rgba(0,0,0,0.08);
     }
+    h1 { text-align: center; }
     input, textarea, button {
       width: 100%;
       margin-top: 12px;
@@ -45,18 +47,30 @@
 
 <div class="container">
   <h1>Open Study Assistant</h1>
-  <p>Upload your PDF → Get AI summary instantly.</p>
+  <p>100% Safe · No API · No Login · No Tracking</p>
 
   <input type="file" id="pdf" accept="application/pdf" />
-  <button onclick="processPDF()">Generate AI Summary</button>
+  <button onclick="processPDF()">Generate Smart Summary</button>
 
   <div id="output"></div>
 </div>
 
 <script>
+let summarizer;
+
+async function loadModel() {
+  summarizer = await window.transformers.pipeline(
+    'summarization',
+    'Xenova/distilbart-cnn-6-6'
+  );
+}
+loadModel();
+
 async function processPDF() {
   const file = document.getElementById('pdf').files[0];
-  if (!file) return alert('Upload a PDF');
+  if (!file) return alert('Please upload a PDF');
+
+  document.getElementById('output').innerHTML = '<div class="card">Extracting text...</div>';
 
   const reader = new FileReader();
   reader.onload = async function() {
@@ -64,29 +78,24 @@ async function processPDF() {
     const pdf = await pdfjsLib.getDocument(typedarray).promise;
 
     let text = '';
-    for (let i = 1; i <= pdf.numPages; i++) {
+    for (let i = 1; i <= Math.min(pdf.numPages, 6); i++) {
       const page = await pdf.getPage(i);
       const content = await page.getTextContent();
       text += content.items.map(item => item.str).join(' ') + ' ';
     }
 
-    document.getElementById('output').innerHTML =
-      '<div class=\"card\">Processing with AI...</div>';
+    document.getElementById('output').innerHTML = '<div class="card">Running AI locally in your browser...</div>';
 
-    const response = await fetch('/api/summarize', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text })
-    });
+    const result = await summarizer(text, { max_length: 140, min_length: 60 });
 
-    const data = await response.json();
-
-    document.getElementById('output').innerHTML =
-      `<div class=\"card\">
-        <h3>Summary</h3>
-        <p>${data.summary}</p>
-      </div>`;
+    document.getElementById('output').innerHTML = `
+      <div class="card">
+        <h3>AI Summary</h3>
+        <p>${result[0].summary_text}</p>
+      </div>
+    `;
   };
+
   reader.readAsArrayBuffer(file);
 }
 </script>
