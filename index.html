@@ -41,6 +41,13 @@
       background: #f8fafc;
       border-radius: 12px;
     }
+    .flashcard {
+      padding: 14px;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
@@ -51,12 +58,15 @@
 
   <input type="file" id="pdf" accept="application/pdf" />
   <button onclick="processPDF()">Generate Smart Summary</button>
+  <button onclick="generateFlashcards()">Generate Flashcards</button>
+  <button onclick="generateTest()">Generate Practice Test</button>
 
   <div id="output"></div>
 </div>
 
 <script>
 let summarizer;
+let extractedText = "";
 
 async function loadModel() {
   summarizer = await window.transformers.pipeline(
@@ -77,16 +87,16 @@ async function processPDF() {
     const typedarray = new Uint8Array(this.result);
     const pdf = await pdfjsLib.getDocument(typedarray).promise;
 
-    let text = '';
+    extractedText = '';
     for (let i = 1; i <= Math.min(pdf.numPages, 6); i++) {
       const page = await pdf.getPage(i);
       const content = await page.getTextContent();
-      text += content.items.map(item => item.str).join(' ') + ' ';
+      extractedText += content.items.map(item => item.str).join(' ') + ' ';
     }
 
     document.getElementById('output').innerHTML = '<div class="card">Running AI locally in your browser...</div>';
 
-    const result = await summarizer(text, { max_length: 140, min_length: 60 });
+    const result = await summarizer(extractedText, { max_length: 140, min_length: 60 });
 
     document.getElementById('output').innerHTML = `
       <div class="card">
@@ -97,6 +107,38 @@ async function processPDF() {
   };
 
   reader.readAsArrayBuffer(file);
+}
+
+function generateFlashcards() {
+  if (!extractedText) return alert('Upload and summarize a PDF first');
+
+  let sentences = extractedText.split('.').filter(s => s.trim().length > 30).slice(0, 8);
+
+  let html = '<div class="card"><h3>Flashcards (Click to Flip)</h3><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px">';
+
+  sentences.forEach((s, i) => {
+    html += `<div class="flashcard" onclick="this.innerText = this.dataset.a" data-a="${s}">Concept ${i+1}</div>`;
+  });
+
+  html += '</div></div>';
+
+  document.getElementById('output').innerHTML = html;
+}
+
+function generateTest() {
+  if (!extractedText) return alert('Upload and summarize a PDF first');
+
+  let points = extractedText.split('.').filter(s => s.trim().length > 25).slice(0,5);
+
+  let html = '<div class="card"><h3>Practice Test</h3>';
+
+  points.forEach((p,i) => {
+    html += `<p><b>Q${i+1}:</b> Explain: ${p.slice(0,60)}...</p><textarea placeholder="Write your answer here..."></textarea>`;
+  });
+
+  html += '</div>';
+
+  document.getElementById('output').innerHTML = html;
 }
 </script>
 
